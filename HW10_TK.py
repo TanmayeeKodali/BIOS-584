@@ -4,7 +4,7 @@ from self_py_fun.HW10Fun import *
 from sklearn.linear_model import LogisticRegression as LR
 from sklearn.svm import SVC
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from sklearn.preprocessing import StandardScaler
+
 
 # In HW7, you have the chance to visualize a truncated EEG dataset stratified by
 # target and non-target stimulus type.
@@ -21,6 +21,7 @@ from sklearn.preprocessing import StandardScaler
 # because each row is not entirely independent of each other due to the special structure of the dataset.
 
 # Global constants:
+np.random.seed(100)
 bp_low = 0.5
 bp_upp = 6
 electrode_num = 16
@@ -67,10 +68,8 @@ eeg_frt_type = eeg_frt_obj["Type"]
 print(eeg_frt_type.shape)
 eeg_frt_type = eeg_frt_type.ravel()
 
-#Scale the EEG Features
-scaler = StandardScaler()
-X_trn_scaled = scaler.fit_transform(eeg_trn_signal)
-X_frt_scaled = scaler.transform(eeg_frt_signal)
+# Calculate trn_seq_size (MISSING IN YOUR CODE)
+trn_seq_size = int(eeg_trn_signal.shape[0] / char_trn_size / 12)
 
 # You have completed the exploratory data analysis in HW7 and HW8.
 # The dataset has been carefully reviewed by Dr. Jane E. Huggins,
@@ -84,17 +83,21 @@ X_frt_scaled = scaler.transform(eeg_frt_signal)
 # You do not need to modify the parameters of each classifier
 # except for LogisticRegression: set max_iter=1000
 # Write your own code below:
+from sklearn.preprocessing import StandardScaler
 
-# Logistic Regression
-logistic_model = LR(max_iter=1000, solver='lbfgs', random_state=100)
-logistic_model.fit(X_trn_scaled, eeg_trn_type)
-print("n_iter_ (per class or for multiclass):", logistic_model.n_iter_)
+scaler = StandardScaler()
+eeg_trn_signal_scaled = scaler.fit_transform(eeg_trn_signal)
+eeg_frt_signal_scaled = scaler.transform(eeg_frt_signal)
 
-# LDA
+# Logistic Regression (uses scaled data for better convergence)
+logistic_model = LR(max_iter=1000)
+logistic_model.fit(eeg_trn_signal_scaled, eeg_trn_type)
+
+# LDA (uses original data - LDA has built-in scaling)
 lda_model = LDA()
 lda_model.fit(eeg_trn_signal, eeg_trn_type)
 
-# SVM
+# SVM (uses original data)
 svm_model = SVC(probability=True)
 svm_model.fit(eeg_trn_signal, eeg_trn_type)
 
@@ -105,28 +108,26 @@ svm_model.fit(eeg_trn_signal, eeg_trn_type)
 # You are asked to generate stimulus-level probability for each method on TRN files,
 # denoted as logistic_y_trn, lda_y_trn, and svm_y_trn.
 # Write your own code below:
-logistic_y_trn = logistic_model.predict_proba(eeg_trn_signal)[:, 1]
-lda_y_trn = lda_model.predict_proba(eeg_trn_signal)[:, 1]
-svm_y_trn = svm_model.predict_proba(eeg_trn_signal)[:, 1]
+logistic_y_trn = logistic_model.predict_proba(eeg_trn_signal_scaled)
+lda_y_trn = lda_model.predict_proba(eeg_trn_signal)
+svm_y_trn = svm_model.predict_proba(eeg_trn_signal)
 
 # Step 3.2: Prediction accuracy on FRT files
 # Similarly, you are asked to generate stimulus-level probability for each method on FRT files,
 # denoted as logistic_y_frt, lda_y_frt, and svm_y_frt.
 # Write your own code below:
-logistic_y_frt = logistic_model.predict_proba(eeg_frt_signal)[:, 1]
-lda_y_frt = lda_model.predict_proba(eeg_frt_signal)[:, 1]
-svm_y_frt = svm_model.predict_proba(eeg_frt_signal)[:, 1]
+logistic_y_frt = logistic_model.predict_proba(eeg_frt_signal_scaled)
+lda_y_frt = lda_model.predict_proba(eeg_frt_signal)
+svm_y_frt = svm_model.predict_proba(eeg_frt_signal)
 
 # Step 4: Convert binary classification probability to character-level accuracy
 # This involves advanced data manipulation, so you do not need to write any new code.
-# Please run the following code to view the final results.
-'''
+# Please run the following code to view the final results
 eeg_trn_code = eeg_trn_obj['Code']
 eeg_frt_code = eeg_frt_obj['Code']
 char_frt = convert_raw_char_to_alphanumeric_stype(eeg_frt_obj['Text'])
-# raw format is different from the current 6x6 layout characters.
 char_frt_size = len(char_frt)
-frt_seq_size = int(eeg_frt_signal.shape[0]/char_frt_size/12)
+frt_seq_size = int(eeg_frt_signal.shape[0] / char_frt_size / 12)
 
 # Logistic regression
 print('Logistic Regression on TRN:')
@@ -135,7 +136,7 @@ logistic_letter_mat_trn, logistic_letter_prob_mat_trn = streamline_predict(
     stimulus_group_set, eeg_rcp_array
 )
 print(logistic_letter_mat_trn)
-print(list(char_trn)) # This is the true spelling characters for training set!
+print(list(char_trn))
 logistic_trn_accuracy = np.mean(logistic_letter_mat_trn == np.array(list(char_trn))[:, np.newaxis], axis=0)
 
 print('Logistic Regression on FRT:')
@@ -144,7 +145,7 @@ logistic_letter_mat_frt, logistic_letter_prob_mat_frt = streamline_predict(
     stimulus_group_set, eeg_rcp_array
 )
 print(logistic_letter_mat_frt)
-print(list(char_frt)) # This is the true spelling characters for testing set!
+print(list(char_frt))
 logistic_frt_accuracy = np.mean(logistic_letter_mat_frt == np.array(list(char_frt))[:, np.newaxis], axis=0)
 
 # LDA:
@@ -154,7 +155,7 @@ lda_letter_mat_trn, lda_letter_prob_mat_trn = streamline_predict(
     stimulus_group_set, eeg_rcp_array
 )
 print(lda_letter_mat_trn)
-print(list(char_trn)) # This is the true spelling characters for training set!
+print(list(char_trn))
 lda_trn_accuracy = np.mean(lda_letter_mat_trn == np.array(list(char_trn))[:, np.newaxis], axis=0)
 
 print('LDA on FRT:')
@@ -163,7 +164,7 @@ lda_letter_mat_frt, lda_letter_prob_mat_frt = streamline_predict(
     stimulus_group_set, eeg_rcp_array
 )
 print(lda_letter_mat_frt)
-print(list(char_frt)) # This is the true spelling characters for testing set!
+print(list(char_frt))
 lda_frt_accuracy = np.mean(lda_letter_mat_frt == np.array(list(char_frt))[:, np.newaxis], axis=0)
 
 # SVM:
@@ -173,7 +174,7 @@ svm_letter_mat_trn, svm_letter_prob_mat_trn = streamline_predict(
     stimulus_group_set, eeg_rcp_array
 )
 print(svm_letter_mat_trn)
-print(list(char_trn)) # This is the true spelling characters for training set!
+print(list(char_trn))
 svm_trn_accuracy = np.mean(svm_letter_mat_trn == np.array(list(char_trn))[:, np.newaxis], axis=0)
 
 print('Support Vector Machine on FRT:')
@@ -182,9 +183,8 @@ svm_letter_mat_frt, svm_letter_prob_mat_frt = streamline_predict(
     stimulus_group_set, eeg_rcp_array
 )
 print(svm_letter_mat_frt)
-print(list(char_frt)) # This is the true spelling characters for testing set!
+print(list(char_frt))
 svm_frt_accuracy = np.mean(svm_letter_mat_frt == np.array(list(char_frt))[:, np.newaxis], axis=0)
-
 
 print(logistic_trn_accuracy)
 print(lda_trn_accuracy)
@@ -193,7 +193,22 @@ print(svm_trn_accuracy)
 print(logistic_frt_accuracy)
 print(lda_frt_accuracy)
 print(svm_frt_accuracy)
-'''
+
+print("\n==========================")
+print("FINAL SUMMARY: FRT Accuracy")
+print("==========================")
+print(f"Logistic Regression FRT Accuracy: {logistic_frt_accuracy[-1]:.4f}")
+print(f"LDA FRT Accuracy: {lda_frt_accuracy[-1]:.4f}")
+print(f"SVM FRT Accuracy: {svm_frt_accuracy[-1]:.4f}")
+
+print("\n==========================")
+print("FINAL SUMMARY: TRN Accuracy")
+print("==========================")
+print(f"Logistic Regression TRN Accuracy: {logistic_trn_accuracy[-1]:.4f}")
+print(f"LDA TRN Accuracy: {lda_trn_accuracy[-1]:.4f}")
+print(f"SVM TRN Accuracy: {svm_trn_accuracy[-1]:.4f}")
+
+
 
 # Remember to answer two questions below:
 
@@ -207,5 +222,53 @@ print(svm_frt_accuracy)
 # svm_trn_accuracy = np.mean(svm_letter_mat_trn == np.array(list(char_trn))[:, np.newaxis], axis=0)
 # svm_frt_accuracy = np.mean(svm_letter_mat_frt == np.array(list(char_frt))[:, np.newaxis], axis=0)
 
+"""
+These lines calculate the character-level accuracy for each classification method on both 
+training and testing datasets. Specifically:
+1. They compare the predicted letter matrix (from streamline_predict) with the true characters
+2. np.array(list(char_trn/char_frt))[:, np.newaxis] converts the true character string to a 
+  column array for broadcasting
+3. The == operator creates a boolean array indicating correct predictions
+4. np.mean(..., axis=0) computes the accuracy across all characters for each prediction sequence
+5. This gives accuracy as a function of the number of sequences used for classification
+"""
+
 # Step 5: Summary
 # Which method performs the best? Why?
+"""
+RESULTS:
+FRT Accuracy
+==========================
+Logistic Regression FRT Accuracy: 1.0000
+LDA FRT Accuracy: 0.9630
+SVM FRT Accuracy: 1.0000
+==========================
+TRN Accuracy
+==========================
+Logistic Regression TRN Accuracy: 1.0000
+LDA TRN Accuracy: 1.0000
+SVM TRN Accuracy: 1.0000
+==========================
+
+Both Logistic Regression and SVM achieve perfect performance with 100% accuracy on the FRT (testing) dataset, while LDA achieves 96.30% accuracy. All three methods show excellent performance on the training set (100% accuracy).
+Why Logistic Regression and SVM perform best:
+
+Logistic Regression:
+Feature standardization allows the optimizer to converge properly, creating an effective linear decision boundary
+The scaled features help the gradient descent algorithm navigate the high-dimensional space (400 features) efficiently
+Despite being a simple linear classifier, it captures the essential discriminative patterns in P300 responses
+Perfect generalization (100% TRN and FRT) indicates the model found a robust linear separator without overfitting
+
+
+SVM:
+The RBF kernel can model non-linear relationships in the P300 ERP signal across electrodes and time points
+SVM's margin maximization provides good generalization even with high-dimensional data
+The probability estimates from the decision function are well-calibrated for the character-level prediction task
+
+While LDA achieves strong performance (96.30%), it falls slightly short of perfect accuracy because:
+LDA assumes multivariate Gaussian distributions with equal covariance matrices, which may not perfectly hold for EEG data
+The method is sensitive to the correlation structure among the 400 features
+
+Conclusion:
+Both Logistic Regression and SVM are optimal choices for this P300 BCI speller system, achieving perfect character recognition on unseen data. The key to Logistic Regression's success was feature standardization, which enabled proper convergence and created an effective decision boundary. For practical deployment, Logistic Regression might be preferred due to its simplicity and computational efficiency, while SVM offers the flexibility of non-linear decision boundaries if needed for other subjects or conditions
+"""
